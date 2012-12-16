@@ -1,0 +1,10 @@
+{
+	"name": "gtacts",
+	"version": "0.0.1",
+	"main": "./public/stylesheets/style.css",
+	"dependencies": {
+		"jquery": "~1.7.2",
+		"backbone": "~0.9.9",
+		"underscore": "~1.4.3"
+	}
+}

@@ -1,0 +1,8 @@
+gtacts
+======
+
+Instructions:
+-------------
+ 1. Install node modules with `npm install`.
+ 2. Install client-side dependencies with `bower install`.
+ 3. Run the app with `node app`.
