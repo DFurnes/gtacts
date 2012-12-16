@@ -1,0 +1,25 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+
+.contact-container {
+	float: left;
+	width: 400px;
+	background-color: #eee;
+	color: #333;
+	padding: 1em;
+	margin: 0 1em 1em 0;
+}
+
+.contact-container dt {
+	font-weight: bold;
+}
+
+.contact-container dd {
+	margin: 0 1.5em;
+}
