@@ -17,3 +17,7 @@ npm-debug.log
 # ignore dependency folders for node & bower
 node_modules
 public/components
+
+
+# ignore configuration file
+conf.js
