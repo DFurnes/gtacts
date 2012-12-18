@@ -1,8 +1,14 @@
 gtacts
 ======
 
+Requirements:
+-------------
+ - Node.js 0.8.4+
+ - CouchDB (running on port 5984)
+
 Instructions:
 -------------
  1. Install node modules with `npm install`.
  2. Install client-side dependencies with `bower install`.
- 3. Run the app with `node app`.
+ 3. Start up CouchDB with `couchdb`.
+ 4. Run the app with `node app`.

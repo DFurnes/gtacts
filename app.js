@@ -3,15 +3,40 @@
  */
 
 var express = require('express')
+  , ejs = require('ejs')
   , routes = require('./routes')
-  , user = require('./routes/user')
   , http = require('http')
   , path = require('path')
   , util = require('util')
   , passport = require('passport')
+  , nano = require('nano')('http://localhost:5984/')
   , GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 var conf = require('./conf');
+
+/*
+ * CouchDB setup.
+ */
+
+var db_name = "gtacts", db = nano.use(db_name);
+
+db.insert({nano: true}, function(err, body, headers) {
+  if(err) { 
+    if(err.message === 'no_db_file') {
+      // first run! create database and retry.
+      return nano.db.create(db_name, function() {
+        console.log("Created database '" + db_name + "'.")
+      })
+    }
+  } else {
+    console.log("Connected to CouchDB database " + db_name + ".")
+  }
+});
+
+
+/*
+ * Passport setup.
+ */
 
 // passport session startup... since no persistent DB, complete profile is serialized/deserialized
 passport.serializeUser(function(user, done) {
@@ -26,23 +51,58 @@ passport.deserializeUser(function(obj, done) {
 passport.use(new GoogleStrategy({
     clientID: conf.google.clientID,
     clientSecret: conf.google.clientSecret,
-    callbackURL: "http://localhost:3000/auth/google/callback"
-  }, function(accessToken, refreshToken, profile, done) {
-    // note: async verification
-    process.nextTick(function() {
-      // user's google profile is returned to represent user; in future, should really associate with
-      // a user's record in the database
-      return done(null, profile);
-    });
+    callbackURL: "http://localhost:3000/auth/google/callback",
+    passReqToCallback: true
+  }, function(req, accessToken, refreshToken, profile, done) {
+    console.log(profile.id);
+    console.log(profile.displayName);
+    console.log(profile._json.link);
+    console.log(accessToken);
+
+    var newUser = {
+      id: profile.id,
+      name: profile.displayName,
+      link: profile._json.link,
+      accessToken: accessToken,
+    }
+
+    if(!req.user) {
+      // not logged in, authenticate based on Google account
+
+      // check if this user already exists, and if so add _rev to update it
+      db.get(profile.id, function(err, existing) {
+        if(!err) newUser._rev = existing._rev;
+
+        // add ID, full name, and access token to DB
+        db.insert(newUser, profile.id, function(err, body, header) {
+          if(err) {
+            console.log('[db.insert] ', err.message);
+            return;
+          }
+
+          console.log('Authenticated & inserted/updated user in database.');
+          console.log(body);
+        });
+      });
+
+      return done(null, newUser);
+    } else {
+      console.log("Already authenticated!");
+      return done(null, newUser);
+    }
   }
 ));
+
+/*
+ * Express setup.
+ */
 
 var app = express();
 
 app.configure(function(){
   app.set('port', process.env.PORT || 3000);
   app.set('views', __dirname + '/views');
-  app.set('view engine', 'jade');
+  app.set('view engine', 'ejs');
   app.use(express.favicon());
   app.use(express.logger('dev'));
   app.use(express.cookieParser());
@@ -59,11 +119,13 @@ app.configure('development', function(){
   app.use(express.errorHandler());
 });
 
-// app.get('/', routes.index);
-//app.get('/users', user.list);
+/*
+ * HTTP requests.
+ */
 
+// GET /user
 app.get('/user', ensureAuthenticated,function(req, res){
-  res.render('index', { title: "User Info", user: req.user.displayName });
+  res.render('index.ejs', { title: "User Info", user: req.user });
   console.log(util.inspect(req.user));
 });
 
@@ -71,35 +133,32 @@ app.get('/user', ensureAuthenticated,function(req, res){
 // GET /auth/google
 app.get('/auth/google',
   passport.authenticate('google', { scope: ['https://www.googleapis.com/auth/userinfo.profile',
-                                            'https://www.google.com/m8/feeds'] }),
-  function(req, res) {
-    // The request will be redirected to Google for authentication, so this
-    // function will not be called.
-  }
+                                            'https://www.google.com/m8/feeds'] })
 );
 
 // GET /auth/google/callback
 app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: "/loginerror" }),
-  function(req, res) {
-    res.redirect('/user');
-  }
+  passport.authenticate('google', { 
+    successRedirect: "/user",
+    failureRedirect: "/loginerror"
+  })
 );
 
+// GET /logout
 app.get('/logout', function(req, res) {
   req.logout();
   res.redirect('/');
 });
 
+/*
+ * Server creation & middleware.
+ */
+
 http.createServer(app).listen(app.get('port'), function(){
   console.log("Express server listening on port " + app.get('port'));
 });
 
-// Simple route middleware to ensure user is authenticated.
-//   Use this route middleware on any resource that needs to be protected.  If
-//   the request is authenticated (typically via a persistent login session),
-//   the request will proceed.  Otherwise, the user will be redirected to the
-//   login page.
+// Route middleware to ensure user is authenticated.
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) { return next(); }
   res.redirect('/auth/google');
