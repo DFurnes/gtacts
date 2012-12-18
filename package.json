@@ -12,6 +12,7 @@
     "util": "*",
     "nano": "*",
     "passport": "*",
-    "passport-google-oauth": "*"
+    "passport-google-oauth": "*",
+    "qs": "*"
   }
 }
