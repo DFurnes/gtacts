@@ -8,32 +8,40 @@ var express = require('express')
   , http = require('http')
   , https = require('https')
   , qs = require('qs')
+  , xml2js = require('xml2js')
   , path = require('path')
   , util = require('util')
-  , nano = require('nano')('http://localhost:5984/')
+  , mongoose = require('mongoose')
   , passport = require('passport')
   , GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 var conf = require('./conf');
 
 /*
- * CouchDB setup.
+ * MongoDB setup.
  */
 
-var db_name = "gtacts", db = nano.use(db_name);
+mongoose.connect(conf.mongodb.hostname, conf.mongodb.dbname);
+mongoose.connection.on('error', function() {
+  console.error('Mongoose connection error: check that mongod is running.');
+})
 
-db.insert({nano: true}, function(err, body, headers) {
-  if(err) { 
-    if(err.message === 'no_db_file') {
-      // first run! create database and retry.
-      return nano.db.create(db_name, function() {
-        console.log("Created database '" + db_name + "'.")
-      })
-    }
-  } else {
-    console.log("Connected to CouchDB database " + db_name + ".")
-  }
+var userSchema = new mongoose.Schema({
+  _id: String,
+  profile_id: String,
+  name: String,
+  accessToken: String,
+  refreshToken: String
 });
+
+// custom id for users
+userSchema.path('profile_id').set(function(v) {
+  this._id = 'user_' + v;
+  return v;
+});
+
+var User = mongoose.model('User', userSchema);
+
 
 
 /*
@@ -61,37 +69,57 @@ passport.use(new GoogleStrategy({
     console.log(accessToken);
     console.log(refreshToken);
 
-    var newUser = {
-      id: profile.id,
-      name: profile.displayName,
-      accessToken: accessToken,
-      refreshToken: refreshToken
-    }
-
     if(!req.user) {
       // not logged in, authenticate based on Google account
 
       // check if this user already exists, and if so add _rev to update it
-      db.get(profile.id, function(err, existing) {
-        if(err) {
-          existing = {};
-          existing.id = profile.id;
-        }
+      // db.get(profile.id, function(err, existing) {
+      //   if(err) {
+      //     existing = {};
+      //     existing.id = profile.id;
+      //   }
 
-        if(newUser.name != undefined) existing.name = newUser.name;
-        if(newUser.accessToken != undefined) existing.accessToken = newUser.accessToken;
-        if(newUser.refreshToken != undefined) existing.refreshToken = newUser.refreshToken;
+      //   if(newUser.name != undefined) existing.name = newUser.name;
+      //   if(newUser.accessToken != undefined) existing.accessToken = newUser.accessToken;
+      //   if(newUser.refreshToken != undefined) existing.refreshToken = newUser.refreshToken;
 
-        // add updated ID, full name, and access token to DB
-        db.insert(existing, profile.id, function(err, body, header) {
-          if(err) {
-            console.log('[db.insert] ', err.message);
-            return;
+      //   // add updated ID, full name, and access token to DB
+      //   db.insert(existing, profile.id, function(err, body, header) {
+      //     if(err) {
+      //       console.log('[db.insert] ', err.message);
+      //       return;
+      //     }
+
+      //     console.log('Authenticated & inserted/updated user in database.');
+      //     console.log(existing);
+      //     console.log(body);
+      //   });
+      // });
+
+      var newUser = new User ({
+        profile_id: profile.id,
+        name: profile.displayName,
+        accessToken: accessToken,
+        refreshToken: refreshToken
+      });
+
+      User.findById("user_" + profile.id, function(err, user) {        
+        if(user != undefined && user.refreshToken != undefined) newUser.refreshToken = user.refreshToken;
+
+        newUser.save(function(err) {
+          if(!err) {
+            return console.log('created new user');
+          } else {
+            console.log('user already exists. updating...')
+
+            user.name = profile.displayName;
+            user.accessToken = accessToken;
+            if(refreshToken != undefined) user.refreshToken = refreshToken;
+
+            user.save(function(err) {
+              if(err) console.error('Error updating user...', err.message);
+            });
           }
-
-          console.log('Authenticated & inserted/updated user in database.');
-          console.log(existing);
-          console.log(body);
         });
       });
 
@@ -133,9 +161,23 @@ app.configure('development', function(){
  * HTTP requests.
  */
 
-// GET /user
-app.get('/user', ensureAuthenticated,function(req, res) {
-  res.render('index.ejs', { title: "User Info", user: req.user });
+// GET /api/users
+// ** should be removed before going live, because security.
+app.get('/api/users', function(req, res) {
+  User.find(function(err, users) {
+    res.json(users);
+  })
+});
+
+app.get('/api/users/:id', function(req, res) {
+  User.findById("user_" + req.params.id, function(err, user) {
+    res.json(user);
+  })
+});
+
+// GET /contacts
+app.get('/contacts', ensureAuthenticated,function(req, res) {
+  res.render('contacts.ejs', { title: "User Info", user: req.user });
   console.log(util.inspect(req.user));
 });
 
@@ -150,7 +192,7 @@ app.get('/auth/google',
 // GET /auth/google/callback
 app.get('/auth/google/callback',
   passport.authenticate('google', { 
-    successRedirect: "/user",
+    successRedirect: "/contacts",
     failureRedirect: "/loginerror"
   })
 );
@@ -161,8 +203,8 @@ app.get('/logout', function(req, res) {
   res.redirect('/');
 });
 
-// GET /contacts
-app.get('/contacts', ensureAuthenticated, function(req, res) {
+// GET /api/contacts
+app.get('/api/contacts', ensureAuthenticated, function(req, res) {
   req_authorization = 'Bearer ' + req.user.accessToken;
   console.log(req_authorization)
 
@@ -178,27 +220,69 @@ app.get('/contacts', ensureAuthenticated, function(req, res) {
     }
   }
 
-  var req = https.request(options, function(res) {
+  var api_req = https.request(options, function(api_res) {
     var buffer = "", data;
-    res.setEncoding('utf8');
+    api_res.setEncoding('utf8');
 
-    res.on('data', function(chunk) {
+    api_res.on('data', function(chunk) {
       buffer += chunk;
     });
 
-    res.on('end', function() {
-      console.log(buffer);
-      //data = JSON.parse(buffer); // parse into valid JSON
-      //console.log(data);
+    api_res.on('end', function() {
+      var parser = new xml2js.Parser();
+
+      parser.on('end', function(result) {
+        // let's put that in a n
+
+        var test = [
+          { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+          { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+          { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+          { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+          { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+          { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+          { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+          { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+          { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
+        ];
+
+        res.json(test);
+      });
+
+      parser.parseString(buffer); // parse stinky XML into JSON
 
     });
   });
 
-  req.end();
+  api_req.end();
   
   // refreshToken(req.user.id, function(result) {
   // });
 });
+
+// GET /api/contacts/:id
+app.get('/api/contacts/:id'), function(req, res) {
+  var id = req.params.id;
+
+  var test = [
+    { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+    { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+    { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+    { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+    { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+    { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+    { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+    { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+    { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
+  ];
+
+  for(var contact in test) {
+    if(contact.id = req.params.id) {
+      return res.send(contact);
+    }
+  }
+}
+
 
 /*
  * Server creation & middleware.

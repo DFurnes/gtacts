@@ -1,0 +1,22 @@
+<% include header %>
+
+<p>Hey there, <%= user.name %>. (<a href="./logout">Logout</a>)</p>
+
+<ul id="contacts"></ul>
+
+<div id="detail">...</div>
+
+<script id="contactTemplate" type="text/template">
+	<a href="#">{{ name }}</a>
+</script>
+
+<script id="detailTemplate" type="text/template">
+	<h1>{{ name }}</h1>
+	<dl>
+		<dt>Address:</dt> <dd>{{ address }}</dd>
+		<dt>Telephone:</dt> <dd>{{ tel }}</dd>
+		<dt>Email:</dt> <dd><a href="mailto:{{ email }}">{{ email }}</a></dd>
+	</dl>
+</script>
+
+<% include footer %>

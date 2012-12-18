@@ -7,14 +7,35 @@ a {
   color: #00B7FF;
 }
 
-.contact-container {
+#contacts {
 	float: left;
-	width: 400px;
-	background-color: #eee;
-	color: #333;
-	padding: 1em;
-	margin: 0 1em 1em 0;
+	width: 300px;
+	list-style: none;
+	margin: 0;
 }
+
+.contact-container a {
+	display: block;
+	width: 100%;
+	color: #333;
+	border-bottom: 1px solid #eee;
+	padding: 1em;
+}
+
+.contact-container a:hover {
+	background: #eee;
+}
+
+#detail {
+	float: left;
+	width: 500px;
+	margin: 0 4em;
+	padding: 1em;
+	border: 1px solid #eee;
+	box-shadow: rgba(0,0,0,0.1) 0px 0px 5px;
+}
+
+
 
 .contact-container dt {
 	font-weight: bold;
