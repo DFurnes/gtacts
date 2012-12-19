@@ -42,7 +42,16 @@ userSchema.path('profile_id').set(function(v) {
 
 var User = mongoose.model('User', userSchema);
 
+var contactSchema = new mongoose.Schema({
+  _id: String,
+  profile_id: String,
+  owner_id: String,
+  name: String,
+  address: String,
+  phone: String
+});
 
+var Contact = mongoose.model('Contact', contactSchema);
 
 /*
  * Passport setup.
@@ -71,31 +80,6 @@ passport.use(new GoogleStrategy({
 
     if(!req.user) {
       // not logged in, authenticate based on Google account
-
-      // check if this user already exists, and if so add _rev to update it
-      // db.get(profile.id, function(err, existing) {
-      //   if(err) {
-      //     existing = {};
-      //     existing.id = profile.id;
-      //   }
-
-      //   if(newUser.name != undefined) existing.name = newUser.name;
-      //   if(newUser.accessToken != undefined) existing.accessToken = newUser.accessToken;
-      //   if(newUser.refreshToken != undefined) existing.refreshToken = newUser.refreshToken;
-
-      //   // add updated ID, full name, and access token to DB
-      //   db.insert(existing, profile.id, function(err, body, header) {
-      //     if(err) {
-      //       console.log('[db.insert] ', err.message);
-      //       return;
-      //     }
-
-      //     console.log('Authenticated & inserted/updated user in database.');
-      //     console.log(existing);
-      //     console.log(body);
-      //   });
-      // });
-
       var newUser = new User ({
         profile_id: profile.id,
         name: profile.displayName,
@@ -161,26 +145,15 @@ app.configure('development', function(){
  * HTTP requests.
  */
 
-// GET /api/users
-// ** should be removed before going live, because security.
-app.get('/api/users', function(req, res) {
-  User.find(function(err, users) {
-    res.json(users);
-  })
-});
-
-app.get('/api/users/:id', function(req, res) {
-  User.findById("user_" + req.params.id, function(err, user) {
-    res.json(user);
-  })
-});
-
 // GET /contacts
 app.get('/contacts', ensureAuthenticated,function(req, res) {
   res.render('contacts.ejs', { title: "User Info", user: req.user });
   console.log(util.inspect(req.user));
 });
 
+/*
+ * Passport requests.
+ */
 
 // GET /auth/google
 app.get('/auth/google',
@@ -203,9 +176,71 @@ app.get('/logout', function(req, res) {
   res.redirect('/');
 });
 
+/*
+ * API requests.
+ */
+
+// GET /api/users
+// ** should be removed before going live, because security.
+app.get('/api/users', function(req, res) {
+  User.find(function(err, users) {
+    res.json(users);
+  })
+});
+
+app.get('/api/users/:id', function(req, res) {
+  User.findById("user_" + req.params.id, function(err, user) {
+    res.json(user);
+  })
+});
+
 // GET /api/contacts
-app.get('/api/contacts', ensureAuthenticated, function(req, res) {
-  req_authorization = 'Bearer ' + req.user.accessToken;
+app.get('/api/contacts', ensureAuthenticated, function(req,res) {
+  refreshContacts(req.user.accessToken, function(result) {
+
+    Contact.find({owner_id: req.user.profile_id}, function(err, contacts) {
+      //res.json(contacts);
+      res.json(result.feed.entry);
+    });
+  });
+
+  
+});
+
+// GET /api/contacts/:id
+app.get('/api/contacts/:id', ensureAuthenticated, function(req,res) {
+  var contact_id = req.params.id;
+  Contact.findOne({owner_id: req.user.profile_id, profile_id: contact_id}, function(err, contact) {
+    res.json(contact);
+  });
+});
+
+
+app.get('/contacts/:id', ensureAuthenticated, function(req,res) {
+  // var id = req.params.id;
+
+  // var test = [
+  //   { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+  //   { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+  //   { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+  //   { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+  //   { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+  //   { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+  //   { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
+  //   { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
+  //   { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
+  // ];
+
+  // for(var contact in test) {
+  //   if(contact.id == req.params.id) {
+  //     return res.json(contact);
+  //   }
+  // }
+});
+
+
+function refreshContacts(accessToken, callback) {
+  req_authorization = 'Bearer ' + accessToken;
   console.log(req_authorization)
 
   var options = {
@@ -232,21 +267,7 @@ app.get('/api/contacts', ensureAuthenticated, function(req, res) {
       var parser = new xml2js.Parser();
 
       parser.on('end', function(result) {
-        // let's put that in a n
-
-        var test = [
-          { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-          { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-          { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-          { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-          { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-          { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-          { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-          { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-          { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
-        ];
-
-        res.json(test);
+        callback(result);
       });
 
       parser.parseString(buffer); // parse stinky XML into JSON
@@ -258,30 +279,14 @@ app.get('/api/contacts', ensureAuthenticated, function(req, res) {
   
   // refreshToken(req.user.id, function(result) {
   // });
-});
-
-// GET /api/contacts/:id
-app.get('/api/contacts/:id'), function(req, res) {
-  var id = req.params.id;
-
-  var test = [
-    { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-    { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-    { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-    { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-    { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-    { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-    { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-    { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-    { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
-  ];
-
-  for(var contact in test) {
-    if(contact.id = req.params.id) {
-      return res.send(contact);
-    }
-  }
 }
+
+// GET /api/user/me
+app.get('/api/me', ensureAuthenticated, function(req, res) {
+  User.findById("user_" + req.user.profile_id, function(err, user) {
+    res.json(user);
+  })
+});
 
 
 /*
