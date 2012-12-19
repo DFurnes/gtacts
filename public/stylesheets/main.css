@@ -1,20 +1,43 @@
 body {
   padding: 50px;
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  margin-top: 3em;
+}
+
+nav {
+	position: fixed;
+	top: 0; left: 0;
+	width: 100%;
+	background: #eee;
+	padding: 2em;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+	z-index: 10000;
+}
+
+nav h1 {
+	float: left;
+	margin: 0;
+}
+
+nav .user {
+	float: right;
+	margin-top: 3px;
 }
 
 a {
   color: #00B7FF;
 }
 
-#contacts {
+#directory {
 	float: left;
 	width: 300px;
 	list-style: none;
-	margin: 0;
+	margin: 1em 0 0;
 }
 
-.contact-container a {
+.directory-row a {
 	display: block;
 	width: 100%;
 	color: #333;
@@ -22,20 +45,24 @@ a {
 	padding: 1em;
 }
 
-.contact-container a:hover {
+.directory-row a:hover {
 	background: #eee;
 }
 
-#detail {
+.detail {
 	float: left;
+}
+
+#contact {
+	position: fixed;
+	top: 90px;
 	width: 500px;
-	margin: 0 4em;
+	margin: 1em 4em;
 	padding: 1em;
 	border: 1px solid #eee;
 	box-shadow: rgba(0,0,0,0.1) 0px 0px 5px;
+	z-index: 9999;
 }
-
-
 
 .contact-container dt {
 	font-weight: bold;

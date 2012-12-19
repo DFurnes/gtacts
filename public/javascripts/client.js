@@ -30,10 +30,10 @@ $(function() {
 	});
 
 	// define the individual contact view
-	var ContactView = Backbone.View.extend({
+	var DirectoryRow = Backbone.View.extend({
 		tagName: "li",
-		className: "contact-container",
-		template: $("#contactTemplate").html(),
+		className: "directory-row",
+		template: $("#directoryRowTemplate").html(),
 		render: function() {
 			var tmpl = _.template(this.template);
 			this.$el.html(tmpl(this.model.toJSON()));
@@ -43,16 +43,15 @@ $(function() {
 
 	// define the master view
 	var DirectoryView = Backbone.View.extend({
-		el: $("#contacts"),
+		el: $("#directory"),
 		initialize: function() {
-			console.log("initializing!");
 			var that = this;
 			this.collection = new Directory();
 			this.collection.fetch({success: function() {
-				console.log("fetched!");
+				console.log("fetched directory list!");
 				that.render();
-			}, error: function(err) {
-				console.log("Error fetching data: ", err);
+			}, error: function() {
+				console.log("Error fetching data for directory list.");
 			}});
 			
 		},
@@ -63,10 +62,10 @@ $(function() {
 			}, this);
 		},
 		renderContact: function(item) {
-			var contactView = new ContactView({
+			var directoryRow = new DirectoryRow({
 				model: item
 			});
-			this.$el.append(contactView.render().el);
+			this.$el.append(directoryRow.render().el);
 		}
 	});
 
@@ -86,19 +85,5 @@ $(function() {
 	// create an instance of the master view
 	var directory = new DirectoryView();
 	// var router = new ContactRouter({controller: directory});
-
-
-
-	// var contacts = [
-	// 	{ name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-	// 	{ name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-	// 	{ name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-	// 	{ name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-	// 	{ name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-	// 	{ name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-	// 	{ name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-	// 	{ name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-	// 	{ name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
-	// ];
 
 });

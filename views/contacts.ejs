@@ -1,16 +1,21 @@
 <% include header %>
 
-<p>Hey there, <%= user.name %>. (<a href="./logout">Logout</a>)</p>
+<nav>
+	<h1>Gtacts</h1>
+	<div class="user">Hey there, <%= user.name %>. (<a href="./logout">Logout</a>)</a>
+</nav>
 
-<ul id="contacts"></ul>
+<ul id="directory"></ul>
+<div class="detail">
+	<div id="contact-anchor"></div>
+	<div id="contact">...</div>
+</div>
 
-<div id="detail">...</div>
-
-<script id="contactTemplate" type="text/template">
+<script id="directoryRowTemplate" type="text/template">
 	<a href="#">{{ title }}</a>
 </script>
 
-<script id="detailTemplate" type="text/template">
+<script id="contactDetailTemplate" type="text/template">
 	<h1>{{ name }}</h1>
 	<dl>
 		<dt>Address:</dt> <dd>{{ address }}</dd>
