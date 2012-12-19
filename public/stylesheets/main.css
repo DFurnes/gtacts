@@ -38,6 +38,14 @@ a {
   color: #00B7FF;
 }
 
+#filter {
+	font-size: 1.2em;
+	border: 1px solid #ccc;
+	margin-left: 40px;
+	width: 310px;
+	padding: 0.5em;
+}
+
 #directory {
 	float: left;
 	width: 300px;
@@ -59,6 +67,7 @@ a {
 
 .detail {
 	float: left;
+	min-height: 300px;
 }
 
 #contact {
@@ -70,10 +79,10 @@ a {
 	z-index: 9999;
 }
 
-.contact-container dt {
+#contact dt {
 	font-weight: bold;
 }
 
-.contact-container dd {
-	margin: 0 1.5em;
+#contact dd {
+	margin: 0.5em 1.5em;
 }

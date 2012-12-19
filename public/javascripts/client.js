@@ -58,10 +58,16 @@ $(function() {
 			}});
 			
 		},
-		render: function() {
+		render: function(filter) {
+			$("#directory").html("");
+
 			var that = this;
 			_.each(this.collection.models, function(item) {
-				that.renderContact(item);
+				if(filter && !searchMatch(item, filter)) {
+					// don't render it!
+				} else {
+					that.renderContact(item);
+				}
 			}, this);
 		},
 		renderContact: function(item) {
@@ -91,4 +97,26 @@ $(function() {
 	// create an instance of the master view
 	var directory = new DirectoryView();
 	var detail = new DetailView();
+
+	$("#filter").keyup(function(e) {
+		e.preventDefault();
+		directory.render($("#filter").val())
+	});
+
+	$("form").submit(function(e) {
+		e.preventDefault();
+		return false;
+	});
+
+	function searchMatch(item, filter) {
+		if(item.attributes.name.toLowerCase().match(filter.toLowerCase()) != null) return true;
+		if(item.attributes.email != [])
+			for(e in item.attributes.email)
+				if(item.attributes.email[e].match(filter) != null) return true;
+		if(item.attributes.phone != [])
+			for(p in item.attributes.phone)
+				if(item.attributes.phone[p].replace(/\(|\)|\-|\ /g, "").match(filter.replace(/\(|\)|\-|\ /g, "")) != null) return true;
+
+		return false;
+	}
 });
