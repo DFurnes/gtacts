@@ -23,6 +23,9 @@ $(function() {
 		url: './api/contacts',
 		selectContact: function(contact) {
 			this.event.trigger("contact:selected", contact);
+		},
+		comparator: function(contact) {
+			return contact.get('title');
 		}
 	});
 
@@ -48,6 +51,8 @@ $(function() {
 			this.collection.fetch({success: function() {
 				console.log("fetched!");
 				that.render();
+			}, error: function(err) {
+				console.log("Error fetching data: ", err);
 			}});
 			
 		},

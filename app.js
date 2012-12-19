@@ -246,7 +246,7 @@ function refreshContacts(accessToken, callback) {
   var options = {
     host: 'www.google.com',
     port: 443,
-    path: '/m8/feeds/contacts/default/full/',
+    path: '/m8/feeds/contacts/default/full?max-results=1000',
     method: 'GET',
     headers: {
       'GData-Version': '3.0',
@@ -271,7 +271,6 @@ function refreshContacts(accessToken, callback) {
       });
 
       parser.parseString(buffer); // parse stinky XML into JSON
-
     });
   });
 
