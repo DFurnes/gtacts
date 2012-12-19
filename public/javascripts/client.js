@@ -10,30 +10,33 @@ $(function() {
 		idAttribute: "profile_id",
 		defaults: {
 			photo: "./images/person.png"
-		},
-		select: function() {
-			this.set({selected: true});
-			this.collection.selectContact(this);
 		}
 	});
 
-	// define the directory collection
+	// define the master collection
 	var Directory = Backbone.Collection.extend({
 		model: Contact,
 		url: './api/contacts',
-		selectContact: function(contact) {
-			this.event.trigger("contact:selected", contact);
-		},
 		comparator: function(contact) {
-			return contact.get('title');
+			return contact.get('name').toLowerCase();
 		}
 	});
 
-	// define the individual contact view
+	// define the rows in the master view
 	var DirectoryRow = Backbone.View.extend({
 		tagName: "li",
 		className: "directory-row",
 		template: $("#directoryRowTemplate").html(),
+		events: {
+			'click': 'selectContact'
+		},
+		selectContact: function(e) {
+			e.preventDefault();
+			console.log(this.model);
+
+			detail.showContact(this.model);
+
+		},
 		render: function() {
 			var tmpl = _.template(this.template);
 			this.$el.html(tmpl(this.model.toJSON()));
@@ -48,7 +51,7 @@ $(function() {
 			var that = this;
 			this.collection = new Directory();
 			this.collection.fetch({success: function() {
-				console.log("fetched directory list!");
+				console.log("Fetched directory list!");
 				that.render();
 			}, error: function() {
 				console.log("Error fetching data for directory list.");
@@ -69,21 +72,23 @@ $(function() {
 		}
 	});
 
-	// var ContactRouter = Backbone.Router.extend({
-	// 	routes: {
-	// 		"/:id": "showContact"
-	// 	},
-	// 	initialize: function(options) {
-	// 		this.controller = options.controller;
-	// 	},
-	// 	showContact: function(id) {
-	// 		var contact = this.contacts.get(id);
-	// 		contact.select();
-	// 	}
-	// });
+	// define the detail view
+	var DetailView = Backbone.View.extend({
+		el: $("#contact"),
+		template: $("#contactDetailTemplate").html(),
+		showContact: function(model) {
+			this.model = model;
+
+			this.render();
+		},
+		render: function() {
+			var tmpl = _.template(this.template);
+			this.$el.html(tmpl(this.model.toJSON()));
+			return this;
+		}
+	});
 
 	// create an instance of the master view
 	var directory = new DirectoryView();
-	// var router = new ContactRouter({controller: directory});
-
+	var detail = new DetailView();
 });

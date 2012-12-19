@@ -26,6 +26,14 @@ nav .user {
 	margin-top: 3px;
 }
 
+footer {
+	clear: both;
+	color: #ddd;
+	padding-top: 3em;
+	text-align: center;
+	font-size: 1.5em;
+}
+
 a {
   color: #00B7FF;
 }
@@ -59,8 +67,6 @@ a {
 	width: 500px;
 	margin: 1em 4em;
 	padding: 1em;
-	border: 1px solid #eee;
-	box-shadow: rgba(0,0,0,0.1) 0px 0px 5px;
 	z-index: 9999;
 }
 

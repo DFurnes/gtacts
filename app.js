@@ -8,7 +8,6 @@ var express = require('express')
   , http = require('http')
   , https = require('https')
   , qs = require('qs')
-  , xml2js = require('xml2js')
   , path = require('path')
   , util = require('util')
   , mongoose = require('mongoose')
@@ -42,22 +41,10 @@ userSchema.path('profile_id').set(function(v) {
 
 var User = mongoose.model('User', userSchema);
 
-var contactSchema = new mongoose.Schema({
-  _id: String,
-  profile_id: String,
-  owner_id: String,
-  name: String,
-  address: String,
-  phone: String
-});
-
-var Contact = mongoose.model('Contact', contactSchema);
-
 /*
  * Passport setup.
  */
 
-// passport session startup... since no persistent DB, complete profile is serialized/deserialized
 passport.serializeUser(function(user, done) {
   done(null, user);
 });
@@ -87,30 +74,20 @@ passport.use(new GoogleStrategy({
         refreshToken: refreshToken
       });
 
-      User.findById("user_" + profile.id, function(err, user) {        
-        if(user != undefined && user.refreshToken != undefined) newUser.refreshToken = user.refreshToken;
-
-        newUser.save(function(err) {
-          if(!err) {
-            return console.log('created new user');
-          } else {
-            console.log('user already exists. updating...')
-
-            user.name = profile.displayName;
-            user.accessToken = accessToken;
-            if(refreshToken != undefined) user.refreshToken = refreshToken;
-
-            user.save(function(err) {
-              if(err) console.error('Error updating user...', err.message);
-            });
-          }
+      if(refreshToken != undefined) {
+        User.update({profile_id: profile.id}, {$set: {name: profile.displayName, accessToken: accessToken, refreshToken: refreshToken}}, {upsert: true}, function() {
+          console.log("Inserted/updated user in database. Changed refresh token.")
         });
-      });
+      } else {
+        User.update({profile_id: profile.id}, {$set: {name: profile.displayName, accessToken: accessToken}}, {upsert: true}, function() {
+          console.log("Updated user in database. Did not change refresh token.")
+        });
+      }
 
       return done(null, newUser);
     } else {
       console.log("Already authenticated!");
-      return done(null, newUser);
+      return done(null, req.user);
     }
   }
 ));
@@ -151,7 +128,7 @@ app.get('/contacts', ensureAuthenticated,function(req, res) {
   console.log(util.inspect(req.user));
 });
 
-/*
+/*`
  * Passport requests.
  */
 
@@ -177,11 +154,11 @@ app.get('/logout', function(req, res) {
 });
 
 /*
- * API requests.
+ * Gtacts API requests.
  */
 
-// GET /api/users
-// ** should be removed before going live, because security.
+// GET /api/users(/:id)
+// just for demo purposes. probably wouldn't exist in production because security.
 app.get('/api/users', function(req, res) {
   User.find(function(err, users) {
     res.json(users);
@@ -194,59 +171,66 @@ app.get('/api/users/:id', function(req, res) {
   })
 });
 
+// GET /api/user/me
+app.get('/api/me', ensureAuthenticated, function(req, res) {
+  User.findById("user_" + req.user.profile_id, function(err, user) {
+    res.json(user);
+  })
+});
+
 // GET /api/contacts
 app.get('/api/contacts', ensureAuthenticated, function(req,res) {
-  refreshContacts(req.user.accessToken, function(result) {
+  refreshContacts(req.user.accessToken, req.user.profile_id, function(result) {
+    var entries = JSON.parse(result).feed.entry;
+    var parsed_entries = [];
 
-    Contact.find({owner_id: req.user.profile_id}, function(err, contacts) {
-      //res.json(contacts);
-      res.json(result.feed.entry);
-    });
+    for(i in entries) {
+      var name = "", email = [], phone = [];
+
+      if(entries[i].title != undefined && entries[i].title['$t'] != "") {
+        name = entries[i].title['$t'];
+      } else {
+        if(entries[i]['gd$email'] != undefined) {
+          name = entries[i]['gd$email'][0].address;
+        } else {
+          name = "<unnamed contact>";
+        }
+      }
+
+      if(entries[i]['gd$email'] != undefined) {
+        for(j in entries[i]['gd$email']) {
+          if(entries[i]['gd$email'][j].address != null) email.push(entries[i]['gd$email'][j].address);
+        }
+      }
+
+      if(entries[i]['gd$phoneNumber'] != undefined) {
+        for(j in entries[i]['gd$phoneNumber']) {
+          if(entries[i]['gd$phoneNumber'][j]['$t'] != null) phone.push(entries[i]['gd$phoneNumber'][j]['$t']);
+        }
+      }
+
+      parsed_entries.push({
+        "name": name,
+        "email": email,
+        "phone": phone
+      });
+    }
+
+    res.json(parsed_entries);
   });
-
-  
 });
 
-// GET /api/contacts/:id
-app.get('/api/contacts/:id', ensureAuthenticated, function(req,res) {
-  var contact_id = req.params.id;
-  Contact.findOne({owner_id: req.user.profile_id, profile_id: contact_id}, function(err, contact) {
-    res.json(contact);
-  });
-});
+/*
+ * External API Resources.
+ */
 
-
-app.get('/contacts/:id', ensureAuthenticated, function(req,res) {
-  // var id = req.params.id;
-
-  // var test = [
-  //   { id: "1", name: "John Barrowman", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-  //   { id: "2", name: "Karen Gillan", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-  //   { id: "3", name: "Arthur Darvill", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-  //   { id: "4", name: "Catherine Tate", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-  //   { id: "5", name: "Billie Piper", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-  //   { id: "6", name: "Matt Smith", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-  //   { id: "7", name: "David Tennant", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" },
-  //   { id: "8", name: "Christopher Eccleston", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"gplus" },
-  //   { id: "9", name: "William Hartnell", address: "1, street, town, city, 12345", tel: "0123456789", email:"example@example.com", type:"google" }
-  // ];
-
-  // for(var contact in test) {
-  //   if(contact.id == req.params.id) {
-  //     return res.json(contact);
-  //   }
-  // }
-});
-
-
-function refreshContacts(accessToken, callback) {
+function refreshContacts(accessToken, user_id, callback) {
   req_authorization = 'Bearer ' + accessToken;
-  console.log(req_authorization)
 
   var options = {
     host: 'www.google.com',
     port: 443,
-    path: '/m8/feeds/contacts/default/full?max-results=1000',
+    path: '/m8/feeds/contacts/default/full?max-results=75000&alt=json',
     method: 'GET',
     headers: {
       'GData-Version': '3.0',
@@ -259,34 +243,80 @@ function refreshContacts(accessToken, callback) {
     var buffer = "", data;
     api_res.setEncoding('utf8');
 
+    api_res.on('error', function(e) {
+      return refreshToken(user_id, function() {
+        refreshContacts(accessToken, user_id, callback);
+      });
+    });
+
     api_res.on('data', function(chunk) {
       buffer += chunk;
     });
 
     api_res.on('end', function() {
-      var parser = new xml2js.Parser();
-
-      parser.on('end', function(result) {
-        callback(result);
-      });
-
-      parser.parseString(buffer); // parse stinky XML into JSON
+      callback(buffer);
     });
   });
 
   api_req.end();
-  
-  // refreshToken(req.user.id, function(result) {
-  // });
 }
 
-// GET /api/user/me
-app.get('/api/me', ensureAuthenticated, function(req, res) {
-  User.findById("user_" + req.user.profile_id, function(err, user) {
-    res.json(user);
-  })
-});
+// Gets a new access_token (expires every hour) using our refresh token.
+function refreshToken(user_id, callback) {
+  console.log("Refreshing access token for user " + user_id + "...");
 
+  var previous_token, refresh_token, access_token;
+  User.findById("user_" + user_id, function(err, user) {
+    if(err) console.error("Couldn't refresh access token because user isn't registered.");
+
+    previous_token = user.accessToken;
+    refresh_token = user.refreshToken;
+
+    var post_data = qs.stringify({
+      'client_id': conf.google.clientID,
+      'client_secret': conf.google.clientSecret,
+      'refresh_token': refresh_token,
+      'grant_type': 'refresh_token'
+    });
+
+    var options = {
+      host: 'accounts.google.com',
+      port: 443,
+      path: '/o/oauth2/token',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+    
+    var req = https.request(options, function(res) {
+      res.setEncoding('utf8');
+      
+      console.log("Making request for new access token using refresh token: " + refresh_token);
+      res.on('data', function(data) {
+        data = JSON.parse(data);
+
+        console.log(data);
+        if(data.access_token != undefined) {
+          console.log("New access token granted: " + data.access_token);
+          access_token = data.access_token;
+          
+          if(previous_token != access_token) {
+            User.update({profile_id: user_id}, {$set: {accessToken: access_token}}, {upsert: true}, function() {
+              console.log("Updated refresh token in database.");
+              callback();
+            });
+          } else {
+            console.error("ERROR: Could not refresh access token.");
+          }
+        }
+      });
+    });
+    
+    req.write(post_data);
+    req.end();
+  });
+}
 
 /*
  * Server creation & middleware.
@@ -302,72 +332,3 @@ function ensureAuthenticated(req, res, next) {
   res.redirect('/auth/google');
 }
 
-
-
-
-
-// Gets a new access_token (expires every hour) using our refresh token.
-function refreshToken(user_id, callback) {
-  console.log("Refreshing access token for user " + user_id + "...");
-
-  var previous_token, refresh_token, access_token;
-  db.get(user_id, function(err, existing) {
-    if(err) console.error("[db.get] ", err.message);
-
-    console.log(existing);
-
-    previous_token = existing.accessToken;
-    refresh_token = existing.refreshToken;
-  });
-
-  var post_data = qs.stringify({
-    'refresh_token': refresh_token,
-    'client_id': conf.google.clientID,
-    'client_secret': conf.google.clientSecret,
-    'grant_type': 'refresh_token'
-  });
-  
-  var options = {
-    host: 'accounts.google.com',
-    port: 443,
-    path: '/o/oauth2/token',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': post_data.length,
-    }
-  }
-  
-  var req = https.request(options, function(res) {
-    res.setEncoding('utf8');
-    
-    console.log("Making request for new access token using refresh token: " + refresh_token);
-    res.on('data', function(data) {
-      data = JSON.parse(data);
-
-      console.log(data);
-      if(data.access_token != undefined) {
-        console.log("****** NEW ACCESS TOKEN ****** ");
-        console.log(data.access_token);
-        console.log("****************************** ");
-        access_token = data.access_token;
-        
-        if(previous_token != access_token) {
-            db.get(user_id, function(err, existing) {
-              if(err) console.error("[db.get] ", err.message);
-              
-              existing.access_token = access_token;
-              db.insert(existing, user_id, function() {
-                callback();
-              });
-            });
-        } else {
-          console.error("ERROR: Could not refresh access token.");
-        }
-      }
-    });
-  });
-  
-  req.write(post_data);
-  req.end();
-}
