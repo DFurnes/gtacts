@@ -8,7 +8,8 @@ Requirements:
 
 Instructions:
 -------------
- 1. Install node modules with `npm install`.
- 2. Install client-side dependencies with `bower install`.
- 3. Start up MongoDB with `mongod`.
- 4. Run the app with `node app`.
+ 1. Add configuration information to `conf.js` following template.
+ 2. Install node modules with `npm install`.
+ 3. Install client-side dependencies with `bower install`.
+ 4. Start up MongoDB with `mongod`.
+ 5. Run the app with `node app`.
