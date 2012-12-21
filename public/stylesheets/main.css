@@ -79,6 +79,15 @@ a {
 	z-index: 9999;
 }
 
+img.avatar {
+	float: right;
+	margin-top: 2em;
+	width: 96px;
+	height: 96px;
+	background: #eee;
+	box-shadow: rgba(0,0,0,0.2) 0 0 10px;
+}
+
 #contact dt {
 	font-weight: bold;
 }

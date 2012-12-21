@@ -119,4 +119,11 @@ $(function() {
 
 		return false;
 	}
+
+	// replace broken images with placeholder
+
+	$("img.avatar").error(function() {
+		$(this).attr("src", "./images/person.png");
+	});
+		
 });

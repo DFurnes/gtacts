@@ -10,6 +10,7 @@ var express = require('express')
   , qs = require('qs')
   , path = require('path')
   , util = require('util')
+  , fs = require('fs')
   , mongoose = require('mongoose')
   , passport = require('passport')
   , GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
@@ -125,7 +126,6 @@ app.configure('development', function(){
 // GET /contacts
 app.get('/contacts', ensureAuthenticated,function(req, res) {
   res.render('contacts.ejs', { title: "User Info", user: req.user });
-  console.log(util.inspect(req.user));
 });
 
 /*`
@@ -185,7 +185,12 @@ app.get('/api/contacts', ensureAuthenticated, function(req,res) {
     var parsed_entries = [];
 
     for(i in entries) {
-      var name = "", email = [], phone = [];
+      var id, name = "", email = [], phone = [];
+
+      if(entries[i].id != undefined) {
+        var raw_id = entries[i].id['$t'];
+        var id = raw_id.match(/[^/]+$/);
+      }
 
       if(entries[i].title != undefined && entries[i].title['$t'] != "") {
         name = entries[i].title['$t'];
@@ -210,6 +215,7 @@ app.get('/api/contacts', ensureAuthenticated, function(req,res) {
       }
 
       parsed_entries.push({
+        "id": id,
         "name": name,
         "email": email,
         "phone": phone
@@ -220,9 +226,64 @@ app.get('/api/contacts', ensureAuthenticated, function(req,res) {
   });
 });
 
+app.get('/api/photo/:id', ensureAuthenticated, function(req, res) {
+  getPhoto(req.params.id, req.user.accessToken, req.user.profile_id, res);
+});
+
 /*
  * External API Resources.
  */
+
+function getPhoto(contact_id, accessToken, user_id, res) {
+  // ex: https://www.google.com/m8/feeds/photos/media/infinity513%40gmail.com/3ba5d718feddbec
+
+  req_authorization = 'Bearer ' + accessToken;
+  req_path = '/m8/feeds/photos/media/default/' + contact_id;
+
+  if(!/^[a-zA-Z0-9_]*$/.test(contact_id)) {
+    return callback("Invalid contact photo path.");
+  }
+
+  var options = {
+    host: 'www.google.com',
+    port: 443,
+    path: req_path,
+    method: 'GET',
+    headers: {
+      'GData-Version': '3.0',
+      'Content-length': '0',
+      'Authorization': req_authorization
+    }
+  }
+
+  var api_req = https.request(options, function(api_res) {
+    // placeholder image for contacts with no photo
+    if(api_req.res.statusCode == 404) {
+      var img = fs.readFileSync(path.join(__dirname, 'public', 'images', 'person.png'));
+      res.writeHead(200, {'Content-Type': 'image/png'});
+      res.end(img, 'binary');
+      return;
+    }
+
+    res.setHeader("Content-Type", api_req.res.headers['content-type']);
+
+    api_res.on('error', function(e) {
+      return refreshToken(user_id, function() {
+        getPhoto(contact_id, accessToken, user_id, res);
+      });
+    });
+
+    api_res.on('data', function(chunk) {
+      res.write(chunk, 'binary');
+    });
+
+    api_res.on('end', function() {
+      res.end();
+    });
+  });
+
+  api_req.end();
+}
 
 function refreshContacts(accessToken, user_id, callback) {
   req_authorization = 'Bearer ' + accessToken;
@@ -296,7 +357,6 @@ function refreshToken(user_id, callback) {
       res.on('data', function(data) {
         data = JSON.parse(data);
 
-        console.log(data);
         if(data.access_token != undefined) {
           console.log("New access token granted: " + data.access_token);
           access_token = data.access_token;
